@@ -1,0 +1,595 @@
+# PHASE 3 — JOINS & RELATIONSHIPS
+
+## 1. Why JOINs?
+
+Data is usually stored in multiple related tables.
+
+Example:
+
+`customers → orders → order_items → products`
+
+If we want customer name + order amount, we need data from both `customers` and `orders`.
+
+```sql
+SELECT c.name, o.order_id, o.total_amount
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id;
+```
+
+**JOIN = combine rows from multiple tables using a related column.**
+
+---
+
+## 2. Basic JOIN Syntax
+
+```sql
+SELECT columns
+FROM table1 t1
+JOIN table2 t2
+ON t1.column = t2.column;
+```
+
+`ON` specifies how the two tables are related.
+
+---
+
+# 3. INNER JOIN
+
+Returns only rows that have a match in both tables.
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+INNER JOIN orders o
+ON c.customer_id = o.customer_id;
+```
+
+Customers without orders are not returned.
+
+`JOIN` by itself means `INNER JOIN`.
+
+---
+
+# 4. LEFT JOIN
+
+Returns:
+
+- Every row from the left table
+- Matching rows from the right table
+- `NULL` when there is no match
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id;
+```
+
+### Find customers who have no orders
+
+```sql
+SELECT c.customer_id, c.name
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id
+WHERE o.order_id IS NULL;
+```
+
+**Important pattern:**
+
+```sql
+LEFT JOIN
+WHERE right_table.id IS NULL
+```
+
+→ find records with no matching record.
+
+---
+
+# 5. RIGHT JOIN
+
+Returns every row from the right table and matching rows from the left table.
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+RIGHT JOIN orders o
+ON c.customer_id = o.customer_id;
+```
+
+Usually, `LEFT JOIN` is preferred because you can simply swap the table order.
+
+---
+
+# 6. CROSS JOIN
+
+Returns every possible combination of rows.
+
+```sql
+SELECT c.name, p.product_name
+FROM customers c
+CROSS JOIN products p;
+```
+
+If there are:
+
+- 15 customers
+- 15 products
+
+Result:
+
+`15 × 15 = 225 rows`
+
+Use carefully because the result can become huge.
+
+---
+
+# 7. SELF JOIN
+
+A table is joined with itself.
+
+Useful for hierarchical relationships.
+
+Example:
+
+```text
+employees
+employee_id
+name
+manager_id
+```
+
+`manager_id` refers to another employee.
+
+```sql
+SELECT
+    e.name AS employee,
+    m.name AS manager
+FROM employees e
+LEFT JOIN employees m
+ON e.manager_id = m.employee_id;
+```
+
+Here:
+
+- `e` = employee
+- `m` = manager
+
+---
+
+# 8. ON vs WHERE
+
+### ON
+
+Defines how tables are joined.
+
+```sql
+ON c.customer_id = o.customer_id
+```
+
+### WHERE
+
+Filters the result.
+
+```sql
+WHERE o.status = 'Completed'
+```
+
+Example:
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id
+WHERE o.status = 'Completed';
+```
+
+---
+
+## Important LEFT JOIN Trap
+
+This:
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id
+WHERE o.status = 'Completed';
+```
+
+can remove customers with no orders, effectively behaving like an INNER JOIN for that condition.
+
+If you want to preserve all customers:
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id
+AND o.status = 'Completed';
+```
+
+**Rule:**
+
+For a `LEFT JOIN`, conditions on the right table often belong in `ON` when unmatched left rows must remain.
+
+---
+
+# 9. Table Aliases
+
+Aliases make joins shorter and easier to read.
+
+```sql
+SELECT c.name, o.total_amount
+FROM customers AS c
+JOIN orders AS o
+ON c.customer_id = o.customer_id;
+```
+
+Instead of:
+
+```sql
+customers.customer_id
+orders.customer_id
+```
+
+we use:
+
+```sql
+c.customer_id
+o.customer_id
+```
+
+---
+
+# 10. Multi-Table JOIN
+
+We can join more than two tables.
+
+Example:
+
+```text
+customers
+   ↓
+orders
+   ↓
+order_items
+   ↓
+products
+```
+
+Query:
+
+```sql
+SELECT
+    c.name,
+    o.order_id,
+    p.product_name,
+    oi.quantity
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id
+JOIN order_items oi
+ON o.order_id = oi.order_id
+JOIN products p
+ON oi.product_id = p.product_id;
+```
+
+Always follow the relationship path.
+
+---
+
+# 11. JOIN + WHERE
+
+Example: completed orders with customer names.
+
+```sql
+SELECT
+    c.name,
+    o.order_id,
+    o.total_amount
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id
+WHERE o.status = 'Completed';
+```
+
+---
+
+# 12. JOIN + DISTINCT
+
+Joins can create duplicate-looking results.
+
+Example: find customers who purchased products.
+
+```sql
+SELECT DISTINCT c.name
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id
+JOIN order_items oi
+ON o.order_id = oi.order_id;
+```
+
+`DISTINCT` removes duplicate result rows.
+
+---
+
+# 13. JOIN + Aggregation
+
+Example: number of orders for each customer.
+
+```sql
+SELECT
+    c.customer_id,
+    c.name,
+    COUNT(o.order_id) AS order_count
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.name;
+```
+
+### Why LEFT JOIN?
+
+Because we also want customers who have **zero orders**.
+
+Use:
+
+```sql
+COUNT(o.order_id)
+```
+
+instead of:
+
+```sql
+COUNT(*)
+```
+
+because `COUNT(o.order_id)` does not count the NULL generated by the LEFT JOIN.
+
+---
+
+# 14. Common JOIN Mistakes
+
+### 1. Wrong join columns
+
+Wrong:
+
+```sql
+ON c.customer_id = o.order_id
+```
+
+Correct:
+
+```sql
+ON c.customer_id = o.customer_id
+```
+
+### 2. Missing JOIN condition
+
+```sql
+FROM customers c, orders o
+```
+
+can produce a Cartesian product.
+
+### 3. Unexpected duplicates
+
+One customer can have many orders.
+
+```text
+Customer → Order
+     1   →   many
+```
+
+So the customer name appears multiple times.
+
+### 4. LEFT JOIN accidentally becoming INNER JOIN
+
+Be careful with conditions in `WHERE`.
+
+---
+
+# 15. How to Solve JOIN Problems
+
+Before writing the query, ask:
+
+### Step 1 — What columns do I need?
+
+Example:
+
+```text
+customer name
+product name
+quantity
+```
+
+### Step 2 — Which tables contain them?
+
+```text
+customers
+products
+order_items
+```
+
+### Step 3 — How are they connected?
+
+```text
+customers
+   ↓ customer_id
+orders
+   ↓ order_id
+order_items
+   ↓ product_id
+products
+```
+
+### Step 4 — Build the JOINs.
+
+### Step 5 — Add WHERE conditions.
+
+### Step 6 — Add GROUP BY / ORDER BY if required.
+
+---
+
+# 16. JOIN Mental Model
+
+```text
+INNER JOIN
+→ matching rows only
+
+LEFT JOIN
+→ everything from LEFT + matching RIGHT
+
+RIGHT JOIN
+→ everything from RIGHT + matching LEFT
+
+CROSS JOIN
+→ every possible combination
+
+SELF JOIN
+→ table joined with itself
+```
+
+---
+
+# 17. Important Interview Questions
+
+1. What is a JOIN?
+2. INNER JOIN vs LEFT JOIN?
+3. LEFT JOIN vs RIGHT JOIN?
+4. When would you use SELF JOIN?
+5. What is a CROSS JOIN?
+6. What is the difference between ON and WHERE?
+7. Why can JOIN produce duplicate rows?
+8. How do you find customers with no orders?
+9. How do you count orders for every customer, including zero?
+10. What happens if the JOIN condition is missing?
+11. Why can a LEFT JOIN behave like an INNER JOIN?
+12. How do you join 4–5 related tables?
+
+---
+
+# 18. Most Important Patterns
+
+### Customer → Orders
+
+```sql
+SELECT c.name, o.order_id
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id;
+```
+
+### Records without a match
+
+```sql
+SELECT c.name
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id
+WHERE o.order_id IS NULL;
+```
+
+### Employee → Manager
+
+```sql
+SELECT e.name AS employee, m.name AS manager
+FROM employees e
+LEFT JOIN employees m
+ON e.manager_id = m.employee_id;
+```
+
+### Multiple tables
+
+```sql
+SELECT c.name, p.product_name, oi.quantity
+FROM customers c
+JOIN orders o
+ON c.customer_id = o.customer_id
+JOIN order_items oi
+ON o.order_id = oi.order_id
+JOIN products p
+ON oi.product_id = p.product_id;
+```
+
+### Count related records
+
+```sql
+SELECT c.name, COUNT(o.order_id) AS orders
+FROM customers c
+LEFT JOIN orders o
+ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.name;
+```
+
+## Phase 3 Core Idea
+
+**JOINs are about understanding relationships between tables and following the correct path between them.**
+
+```text
+Identify columns
+      ↓
+Identify tables
+      ↓
+Find relationships
+      ↓
+JOIN tables
+      ↓
+Filter
+      ↓
+Group/Aggregate
+      ↓
+Sort
+```
+
+# 🧪 Phase 3 Practical Problems
+
+Use our sql_mastery database.
+
+---
+## Level 1 — Basic JOIN
+1. Display customer name and their orders.
+2. Display customer name, order date and total amount.
+3. Display employee name and department name.
+4. Display product name and category name.
+5. Display order ID and payment method.
+---
+## Level 2 — LEFT JOIN
+6. Find all customers and their orders.
+7. Find customers who never placed an order.
+8. Find all departments and their employees.
+9. Find departments that have no employees.
+10. Find products that have never been ordered.
+---
+## Level 3 — SELF JOIN
+11. Display employee and manager names.
+12. Find employees who have no manager.
+13. Find employees who earn more than their manager.
+14. Find employees working under the same manager.
+---
+## Level 4 — Multiple JOINs 🔥
+15. Display customer → order → product.
+16. Display customer name, product name and quantity.
+17. Calculate the value of each order item.
+18. Find all products purchased by Rahul.
+19. Find all customers who purchased a laptop.
+20. Find all orders containing more than one product.
+---
+## Level 5 — Interview Style 🔥🔥
+21. Find customers who have placed at least 2 orders.
+22. Find customers who have never placed a completed order.
+23. Find the most expensive product purchased by each customer.
+24. Find the total amount spent by each customer.
+25. Find the number of products purchased by each customer.
+26. Find the top 5 customers by total spending.
+27. Find the department with the highest-paid employee.
+28. Find employees whose salary is greater than their manager's salary.
+29. Find products that have never received an order.
+30. Find customers who bought products from the Electronics category.
+
+Don't worry if problems 21–30 feel difficult. Some deliberately combine JOINs with aggregation, which is the bridge to Phase 4.
